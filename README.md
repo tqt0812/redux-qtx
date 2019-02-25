@@ -58,7 +58,7 @@ const userModule = {
 
 
 ```js
-import { getReducers, initStore } from "./tools-auto";
+import { getReducers, initStore } from "redux-qtx";
 
 let reducers = combineReducers({
     //注：调用getReducers来生成reducer,参数为模块组成的对象，多个模块则传{ userModule, otherModule, ... };
@@ -75,9 +75,8 @@ initStore(store);
 
 ```js
 import React, { Component } from 'react';
-import { connect } from "react-redux";
 import { View, Text, TouchableOpacity } from "react-native";
-import { autoConnect, getters } from "./store/tools-auto";
+import { autoConnect, getters } from "redux-qtx";
 
 class ReduxTest extends Component {
 
