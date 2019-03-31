@@ -9,46 +9,54 @@ redux-qtx是对redux使用方式的扩展，用更少的代码完成工作。
 npm install --save redux-qtx
 ```
 
-状态管理以module为单位，而一个module应具有属性：getter, action, reducer属性，例如一个用户模块
+状态管理以modal为单位，而一个module应具有属性：
+namespace(命名空间), 
+state(初始化数据+结构), 
+getters(包裹一层获取state的方法), 
+actions(触发state更新什么), 
+reducers(处理state如何更新)
+共计 5 个属性，
+例如一个用户模块
 
 
 ```js
 //用户信息状态
-const initState = {
-    userInfo: null
-}
-
-const userModule = {
-    getter: {
-        //获取用户信息
-        userInfo: (state) => {
-            return state.userInfo;
+export default {
+    namespace: "user",
+    state: {
+        nickName: "",
+        gender: 0,
+        className: "",
+        likes: [],
+    },
+    getters: {
+        //获取性别
+        userGender(state) {
+            return state.gender.toString() === '0' ? "男" : "女"
         },
-        //用户性别
-        userGender: (state) => {
-            if(state.userInfo === null) return "男";    //默认男
-            return state.userInfo.gender === '0' ? "男" : "女";
+        //班级名称
+        className(state) {
+            return "你猜猜"
         }
     },
-    action: {
-        //保存用户信息
-        saveUserInfo: (userInfo) => ({
-            type: "SAVE_USERINFO",
-            userInfo
-        }),
-        //清除用户信息
-        clearUserInfo: () => ({
-            type: "CLEAR_USERINFO"
-        })
+    actions: {
+        //初始化信息
+        initInfo: (params) => async (push) => {
+            let data = await getData(params)
+            push("initInfo", data)
+            return data
+        }
     },
-    reducer: (state=initState, action) => {
-        switch(action.type) {
-            case "SAVE_USERINFO":
-                return { userInfo: action.userInfo };
-            case "CLEAR_USERINFO":
-                return { userInfo: null };
-            default:
-                return state;
+    reducers: {
+        //初始化信息
+        initInfo(state, initState) {
+            return { ...initState }
+        },
+        //添加兴趣爱好
+        addLike(state, likeName) {
+            let likes = state.likes.slice(0)
+            if(likes.indexOf(likeName) === -1) likes.push(likeName)
+            return { ...state, likes }
         }
     }
 }
@@ -62,7 +70,7 @@ import { getReducers, initStore } from "redux-qtx";
 
 let reducers = combineReducers({
     //注：调用getReducers来生成reducer,参数为模块组成的对象，多个模块则传{ userModule, otherModule, ... };
-    ...getReducers({ userModule })
+    ...getReducers([ userModal ])
 });
 const store = createStore(reducers)
 

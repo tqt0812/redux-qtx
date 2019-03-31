@@ -1,69 +1,190 @@
 /*
  * @Author tqt 
- * @DateTime 2019-02-24 12:27:16 
- * desc [主要是对redux react-redux的封装, 让使用更加方便，倾向vuex]
+ * @DateTime 2019-03-29 20:55:10 
+ * @Desc [主要是对redux react-redux的封装, 让使用更加方便，倾向vuex]
  */
-import { connect } from "react-redux";
+import { connect } from "react-redux"
 
 const box = {
     store: null,
-    getterMap: {},
-    actionMap: {},
+    names: [],
+    modalMap: {}
 }
 
 /**
  * desc [初始化并返回reducers]
  */
-export let getReducers = (moduleMap) => {
-    let reducerMap = {};
-    Object.keys(moduleMap).forEach((key) => {
-        //组合getters
-        let getterMap = moduleMap[key].getter;
-        Object.keys(getterMap).forEach((getterName) => {
-            if(box.getterMap[getterName] !== undefined) throw new Error(`出现重复getter: ${ getterName }`);
-            box.getterMap[getterName] = {
-                state: key,
-                getter: getterMap[getterName]
-            }
-        });
-
-        //组合actions
-        let actionMap = moduleMap[key].action;
-        Object.keys(actionMap).forEach((actionName) => {
-            if(box.actionMap[actionName] !== undefined) throw new Error(`出现重复action: ${ actionName }`);
-            box.actionMap[actionName] = actionMap[actionName]
-        });
-
-        //组合reducers
-        reducerMap[key] = moduleMap[key].reducer;
-    });
-    return reducerMap;
+export let getReducers = (modals=[]) => {
+    let _reducers = {}
+    modals.forEach(({ namespace="none", state: initState={}, getters={}, actions={}, reducers={} }) => {
+        //保存modal
+        if(box.names.indexOf(namespace) !== -1) throw new Error(`出现重复modal: ${ namespace }`)
+        box.names.push(namespace)
+        box.modalMap[namespace] = { 
+            state: initState, 
+            getters, 
+            actions, 
+            reducers 
+        }
+        //生成reducer
+        _reducers[namespace] = (state=initState, action) => {
+            let { type, payload } = action
+            let reducerName = type.split("/")[1]
+            return reducers[reducerName] 
+                ? reducers[reducerName](state, payload) 
+                : state
+        }
+    })
+    return _reducers
 }
 
 /**
- * desc [映射getter用于获取state]
+ * desc [处理优先级]
  */
-export let mapGetter = (getterNames) => (state) => {
-    let map = {};
-    getterNames.forEach((getterName) => {
-        let target = box.getterMap[getterName];
-        if(target === undefined) throw new Error(`没有目标getter: ${ getterName }`)
-        map[getterName] = target.getter(state[target.state]);
+export let addGetter = (getterMap, getterName, getterFunc, state, rpi) => {
+    if(getterMap[getterName] !== undefined && getterMap[getterName].rpi > rpi) return
+    getterMap[getterName] = { 
+        getterFunc, 
+        state, 
+        rpi 
+    }
+}
+
+/**
+ * desc [处理多种参数类型，接收字符串数组]
+ * 元素类型一：getterName          ->单个方法
+ * 元素类型二：modalName.getters   ->全部getterName方法
+ * 元素类型三：modalName.property  ->state下的单个属性方法（自动生成）
+ * 元素类型四：modalName.*         ->state下的全部属性方法（自动生成）
+ * 思考：很容易出现命名的冲突，设置优先级：getter > property
+ */
+export let mapGetter = (arr=[]) => (state) => {
+    let getterMap = {};
+    arr.forEach((item) => {
+        let [ namespace, property ] = item.split(".")
+        if (property === undefined) {
+            //元素类型一
+            for(let namespace of box.names) {
+                let getter = box.modalMap[namespace].getters[item]
+                if(getter !== undefined) {
+                    return addGetter(getterMap, item, getter, state[namespace], 2)
+                } 
+            }
+            throw new Error(`没有目标getter: ${ item }`)
+        } else if(property === "getters") {
+            //元素类型二
+            let getters = box.modalMap[namespace].getters
+            Object.keys(getters).forEach((getterName) => {
+                addGetter(getterMap, getterName, getters[getterName], state[namespace], 2)
+            })
+        } else if(property !== "*") {
+            //元素类型三
+            addGetter(getterMap, property, () => state[namespace][property], undefined, 1)
+        } else {
+            //元素类型四
+            let initState = box.modalMap[namespace].state
+            Object.keys(initState).forEach((property) => {
+                addGetter(getterMap, property, () => state[namespace][property], undefined, 1)
+            });
+        }
     })
-    return map;
+    let mapStateToProps = {}
+    Object.keys(getterMap).forEach((getterName) => {
+        let { getterFunc, state } = getterMap[getterName]
+        mapStateToProps[getterName] = getterFunc(state)
+    })
+    return mapStateToProps
+}
+
+/**
+ * desc [生成type，结构：`${namespace}/${reducerName}`]
+ */
+export let getType = (namespace, reducerName) => `${namespace}/${reducerName}`
+
+/**
+ * desc [处理分发，对dispatch包裹一层]
+ */
+export let dispatchPack = (dispatch, action, namespace, reducerName) => (...args) => {
+    let result = action(...args)
+    if(result instanceof Function) {
+        //异步action
+        return result((reducerName, payload) => {
+            dispatch({
+                type: getType(namespace, reducerName),
+                payload
+            })
+        })
+    } else {
+        //同步action
+        return dispatch({
+            type: getType(namespace, reducerName),
+            payload: result
+        })
+    }
+}
+
+/**
+ * desc [处理优先级]
+ */
+export let addAction = (actionMap, actionName, actionFunc, rpi) => {
+    if(actionMap[actionName] !== undefined && actionMap[actionName].rpi > rpi) return
+    actionMap[actionName] = { 
+        actionFunc, 
+        rpi 
+    }
 }
 
 /**
  * desc [映射action用于分发dispatch]
+ * 元素类型一：actionName          ->单个方法
+ * 元素类型二：modalName.actions   ->全部actionName方法
+ * 元素类型三：modalName.reducer   ->reducers下的单个方法（自动生成）
+ * 元素类型四：modalName.*         ->reducers下的全部方法（自动生成）
+ * 思考：很容易出现命名的冲突，设置优先级：action > reducer
  */
-export let mapAction = (actionNames) => (dispatch) => {
-    let map = {};
-    actionNames.forEach((actionName) => {
-        let action = box.actionMap[actionName];
-        if(action === undefined) throw new Error(`没有目标action: ${ actionName }`)
-        map[actionName] = (...args) => dispatch(action(...args));
+export let mapAction = (arr=[]) => (dispatch) => {
+    let actionMap = {}
+    arr.forEach((item) => {
+        let [ namespace, property ] = item.split(".");
+        if (property === undefined) {
+            //元素类型一
+            for(let namespace of box.names) {
+                let action = box.modalMap[namespace].actions[item]
+                if(action !== undefined) {
+                    let actionFunc = dispatchPack(dispatch, action, namespace, item)
+                    return addAction(actionMap, item, actionFunc, 2)
+                } 
+            }
+            throw new Error(`没有目标action: ${ item }`)
+        } else if(property === "actions") {
+            //元素类型二
+            let actions = box.modalMap[namespace].actions
+            Object.keys(actions).forEach((actionName) => {
+                let actionFunc = dispatchPack(dispatch, actions[actionName], namespace, actionName)
+                addAction(actionMap, actionName, actionFunc, 2)
+            })
+        } else if(property !== "*") {
+            //元素类型三
+            addAction(actionMap, property, (payload) => dispatch({
+                type: getType(namespace, property),
+                payload
+            }), 1)
+        } else {
+            //元素类型四
+            let reducers = box.modalMap[namespace].reducers
+            Object.keys(reducers).forEach((reducerName) => {
+                addAction(actionMap, reducerName, (payload) => dispatch({
+                    type: getType(namespace, reducerName),
+                    payload
+                }), 1)
+            })
+        }
     })
-    return map;
+    let mapDispatchToProps = {}
+    Object.keys(actionMap).forEach((actionName) => {
+        mapDispatchToProps[actionName] = actionMap[actionName].actionFunc
+    })
+    return mapDispatchToProps
 }
 
 /**
@@ -75,12 +196,56 @@ export let autoConnect = (getterNames, actionNames) => (componentName) => {
 
 /**
  * desc [对数据获取进行扩展，考虑不允许用户传参，影响结果]
+ * 参数类型一：getterName          ->单个方法
+ * 参数类型二：modalName.property  ->state下的单个属性方法（自动生成）
  */
-export let getters = (getterName) => {
-    if(!box.store) throw new Error(`请调用initStore初始化store`)
-    let target = box.getterMap[getterName];
-    if(target === undefined) throw new Error(`没有目标getter: ${ getterName }`)
-    return target.getter(box.store.getState()[target.state]);
+export let getter = (str) => {
+    let arr = str.split(".")
+    if(arr.length === 1) {
+        //参数类型一
+        let getterName = str
+        for(let namespace of box.names) {
+            let getterFunc = box.modalMap[namespace].getters[getterName]
+            if(getterFunc !== undefined) {
+                return getterFunc(box.store.getState()[namespace])
+            }
+        }
+        throw new Error(`没有目标getter: ${ getterName }`)
+    } else if(arr.length === 2) {
+        //参数类型二
+        let [ namespace, getterName ] = arr
+        let getterFunc = box.modalMap[namespace].getters[getterName]
+        return getterFunc(box.store.getState()[namespace])
+    } else {
+        throw new Error(`异常参数: ${ str }`)
+    }
+}
+
+/**
+ * desc [对数据获取进行扩展，考虑不允许用户传参，影响结果]
+ * 参数类型一：actionName          ->单个方法
+ * 参数类型三：modalName.reducer   ->reducers下的单个方法（自动生成）
+ */
+export let action = (str) => (payload) => {
+    let arr = str.split(".")
+    if(arr.length === 1) {
+        //参数类型一
+        let actionName = str
+        for(let namespace of box.names) {
+            let _action = box.modalMap[namespace].actions[actionName]
+            if(_action !== undefined) {
+                return dispatchPack(box.store.dispatch, _action, namespace)(payload)
+            }
+        }
+        throw new Error(`没有目标action: ${ actionName }`)
+    } else if(arr.length === 2) {
+        //参数类型二
+        let [ namespace, actionName ] = arr
+        let _action = box.modalMap[namespace].actions[actionName]
+        return dispatchPack(box.store.dispatch, _action, namespace)(payload)
+    } else {
+        throw new Error(`异常参数: ${ str }`)
+    }
 }
 
 /**
