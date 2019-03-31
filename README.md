@@ -42,52 +42,26 @@ npm install --save redux-qtx
 
 ### actions (主要用于触发state更新), 
 * 该属性主要是action触发函数的映射，返回值为payload
+* action的触发函数名与reducer处理函数名对应
 * 当返回的是个函数时，该函数的唯一参数为push
 * push为一个包装函数，接收两个参数：reducer处理函数名参数 和 payload
 ```js
-    //获取性别
-    getters: {
-        userGender(state) {
-            return state.gender + "" === "0" ? "男" : "女"
-        }
-    }
-```
-state(初始化数据+结构), 
-getters(包裹一层获取state的方法), 
-actions(触发state更新什么), 
-reducers(处理state如何更新)
-共计 5 个属性，
-例如一个用户模块
-
-
-```js
-//用户信息状态
-export default {
-    namespace: "user",
-    state: {
-        nickName: "",
-        gender: 0,
-        className: "",
-        likes: [],
-    },
-    getters: {
-        //获取性别
-        userGender(state) {
-            return state.gender.toString() === '0' ? "男" : "女"
-        },
-        //班级名称
-        className(state) {
-            return "你猜猜"
-        }
-    },
     actions: {
+        //添加兴趣爱好
+        addLike: (likeName) => likeName,
         //初始化信息
         initInfo: (params) => async (push) => {
             let data = await getData(params)
             push("initInfo", data)
             return data
         }
-    },
+    }
+```
+
+### reducers (处理state如何更新), 
+* 该属性主要是reducer处理函数的映射，接收两个参数：state 和 payload
+* 处理函数返回新的state
+```js
     reducers: {
         //初始化信息
         initInfo(state, initState) {
@@ -100,26 +74,24 @@ export default {
             return { ...state, likes }
         }
     }
-}
 ```
 
 在创建store的时候, 参数reducer应该由redux-qtx来完成，当然你也可以进行扩展
-
 
 ```js
 import { getReducers, initStore } from "redux-qtx";
 
 let reducers = combineReducers({
-    //注：调用getReducers来生成reducer,参数为模块组成的对象，多个模块则传{ userModule, otherModule, ... };
+    //注：调用getReducers来生成reducer,参数为模块组成的对象，多个模块则传[ userModule, otherModul, ... ];
     ...getReducers([ userModal ])
 });
 const store = createStore(reducers)
 
-//注：创建完成后，需要对store进行初始化，因getters这个扩展API需要用到store;
+//注：创建完成后，需要对store进行初始化，因getter, action 扩展API需要用到store;
 initStore(store);
 ```
 
-页面使用就非常方便了。例如：
+接下来就是调用方式了，非常方便了。例如：
 
 
 ```js
