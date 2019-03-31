@@ -9,8 +9,49 @@ redux-qtx是对redux使用方式的扩展，用更少的代码完成工作。
 npm install --save redux-qtx
 ```
 
-状态管理以modal为单位，而一个module应具有属性：
-namespace(命名空间), 
+状态管理以modal为单位，而一个modal应具有属性：
+
+### namespace (命名空间), 
+* 该属性自动生成type字段前缀，如：type: "user/initInfo"
+```js
+    namespace: "user"
+```
+
+### state (初始化数据+结构), 
+* 该属性可用于reducer处理时state的初始化数据，
+* 还可以形如："user.nickName" 这样快速访问state.nickName的值
+```js
+    state: {
+        nickName: "",
+        gender: 0,
+        className: "",
+        likes: [],
+    }
+```
+
+### getters (包裹一层获取state数据的方法), 
+* 该属性主要是getter处理函数的映射，处理函数的唯一参数为：state，
+```js
+    //获取性别
+    getters: {
+        userGender(state) {
+            return state.gender + "" === "0" ? "男" : "女"
+        }
+    }
+```
+
+### actions (主要用于触发state更新), 
+* 该属性主要是action触发函数的映射，返回值为payload
+* 当返回的是个函数时，该函数的唯一参数为push
+* push为一个包装函数，接收两个参数：reducer处理函数名参数 和 payload
+```js
+    //获取性别
+    getters: {
+        userGender(state) {
+            return state.gender + "" === "0" ? "男" : "女"
+        }
+    }
+```
 state(初始化数据+结构), 
 getters(包裹一层获取state的方法), 
 actions(触发state更新什么), 
