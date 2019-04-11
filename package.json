@@ -1,6 +1,6 @@
 {
   "name": "redux-qtx",
-  "version": "1.0.0",
+  "version": "2.1.0",
   "description": "a new method to connect",
   "main": "src/index.js",
   "keywords": [

@@ -88,12 +88,11 @@ export let mapGetter = (arr=[]) => (state) => {
             });
         }
     })
-    let mapStateToProps = {}
-    Object.keys(getterMap).forEach((getterName) => {
+    return Object.keys(getterMap).reduce((mapStateToProps, getterName) => {
         let { getterFunc, state } = getterMap[getterName]
         mapStateToProps[getterName] = getterFunc(state)
-    })
-    return mapStateToProps
+        return mapStateToProps
+    }, {})
 }
 
 /**
@@ -180,11 +179,10 @@ export let mapAction = (arr=[]) => (dispatch) => {
             })
         }
     })
-    let mapDispatchToProps = {}
-    Object.keys(actionMap).forEach((actionName) => {
+    return Object.keys(actionMap).reduce((mapDispatchToProps, actionName) => {
         mapDispatchToProps[actionName] = actionMap[actionName].actionFunc
-    })
-    return mapDispatchToProps
+        return mapDispatchToProps
+    }, {})
 }
 
 /**
