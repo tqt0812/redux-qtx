@@ -211,9 +211,8 @@ export let getter = (str) => {
         throw new Error(`没有目标getter: ${ getterName }`)
     } else if(arr.length === 2) {
         //参数类型二
-        let [ namespace, getterName ] = arr
-        let getterFunc = box.modalMap[namespace].getters[getterName]
-        return getterFunc(box.store.getState()[namespace])
+        let [ namespace, property ] = arr
+        return box.store.getState()[namespace][property]
     } else {
         throw new Error(`异常参数: ${ str }`)
     }
@@ -238,9 +237,11 @@ export let action = (str) => (payload) => {
         throw new Error(`没有目标action: ${ actionName }`)
     } else if(arr.length === 2) {
         //参数类型二
-        let [ namespace, actionName ] = arr
-        let _action = box.modalMap[namespace].actions[actionName]
-        return dispatchPack(box.store.dispatch, _action, namespace)(payload)
+        let [ namespace, reducerName ] = arr
+        box.store.dispatch({
+            type: getType(namespace, reducerName),
+            payload
+        })
     } else {
         throw new Error(`异常参数: ${ str }`)
     }
